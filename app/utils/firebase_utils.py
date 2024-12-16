@@ -18,35 +18,25 @@ def get_email_recipients(doc_data):
         # Add father's emails if available
         if father_email := doc_data.get('filiation', {}).get('father', {}).get('email'):
             recipients.append(father_email)
-        if father_alt_email := doc_data.get('filiation', {}).get('father', {}).get('alternativeEmail'):
-            recipients.append(father_alt_email)
 
         # Add mother's emails if available
         if mother_email := doc_data.get('filiation', {}).get('mother', {}).get('email'):
             recipients.append(mother_email)
-        if mother_alt_email := doc_data.get('filiation', {}).get('mother', {}).get('alternativeEmail'):
-            recipients.append(mother_alt_email)
 
     elif education_guardian == 'father':
         # Add only father's emails
         if father_email := doc_data.get('filiation', {}).get('father', {}).get('email'):
             recipients.append(father_email)
-        if father_alt_email := doc_data.get('filiation', {}).get('father', {}).get('alternativeEmail'):
-            recipients.append(father_alt_email)
 
     elif education_guardian == 'mother':
         # Add only mother's emails
         if mother_email := doc_data.get('filiation', {}).get('mother', {}).get('email'):
             recipients.append(mother_email)
-        if mother_alt_email := doc_data.get('filiation', {}).get('mother', {}).get('alternativeEmail'):
-            recipients.append(mother_alt_email)
 
     elif education_guardian == 'other':
         # Add guardian's emails
         if guardian_email := doc_data.get('guardian', {}).get('email'):
             recipients.append(guardian_email)
-        if guardian_alt_email := doc_data.get('guardian', {}).get('alternativeEmail'):
-            recipients.append(guardian_alt_email)
 
     # Remove any empty strings or None values and remove duplicates
     recipients = list(set(filter(None, recipients)))
