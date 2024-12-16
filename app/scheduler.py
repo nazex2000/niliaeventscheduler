@@ -10,7 +10,7 @@ def start_scheduler():
     scheduler.add_job(
         lambda: asyncio.run(check_new_documents()),
         "interval",
-        minutes=5,
+        minutes=1,
         id="firebase_check_job"
     )
 

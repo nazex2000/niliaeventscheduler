@@ -60,8 +60,7 @@ async def check_new_documents():
 
         if new_documents:
             print(f"Found {len(new_documents)} new documents.")
-            # Enviar e-mails de forma assíncrona para os novos documentos
-            tasks = []
+            
             for doc in new_documents:
                 subject = "Confirmação de Receção de Inscrição"
                 body = generate_email_body(doc["id"])
@@ -70,16 +69,15 @@ async def check_new_documents():
                 recipients = get_email_recipients(doc)
 
                 if recipients:
-                    for recipient in recipients:
-                        tasks.append(send_email_async(subject, body, recipient))
+                    # Criar apenas uma tarefa de envio por destinatário
+                    tasks = [send_email_async(subject, body, recipient) for recipient in recipients]
+                    
+                    # Executar o envio dos emails para este documento
+                    await asyncio.gather(*tasks)
 
                     # Atualizar o documento no Firebase para marcar como notificado
                     doc_ref = collection_ref.document(doc["id"])
                     doc_ref.update({"notification": [datetime.datetime.utcnow()]})
-
-            # Executar todas as tarefas de envio de e-mail
-            if tasks:
-                await asyncio.gather(*tasks)
 
         # Atualizar o último timestamp verificado
         last_checked = datetime.datetime.utcnow()
