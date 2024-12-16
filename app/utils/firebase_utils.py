@@ -48,12 +48,9 @@ async def check_new_documents():
     """Check for new documents in Firebase and send emails asynchronously."""
     global last_checked
     try:
-        # Buscar documentos criados após o último timestamp
         collection_ref = db.collection(settings.firebase_collection)
-        # filtra para documentos com campo notification array vazio
         query = collection_ref.where('notification', '==', []).stream()
 
-        # Coletar os novos documentos e seus IDs
         new_documents = []
         for doc in query:
             new_documents.append({"id": doc.id, **doc.to_dict()})
@@ -62,24 +59,48 @@ async def check_new_documents():
             print(f"Found {len(new_documents)} new documents.")
             
             for doc in new_documents:
+                doc_id = doc["id"]
+                print(f"Processing document {doc_id}")
+                
                 subject = "Confirmação de Receção de Inscrição"
-                body = generate_email_body(doc["id"])
+                body = generate_email_body(doc_id)
 
-                # Get recipients for this document
                 recipients = get_email_recipients(doc)
+                print(f"Recipients for document {doc_id}: {recipients}")
 
                 if recipients:
-                    # Criar apenas uma tarefa de envio por destinatário
-                    tasks = [send_email_async(subject, body, recipient) for recipient in recipients]
-                    
-                    # Executar o envio dos emails para este documento
-                    await asyncio.gather(*tasks)
+                    try:
+                        # Primeiro atualizar o documento para evitar processamento duplicado
+                        doc_ref = collection_ref.document(doc_id)
+                        doc_ref.update({
+                            "notification": [datetime.datetime.utcnow()],
+                            "email_status": "processing"
+                        })
+                        
+                        # Criar e executar as tasks de email
+                        tasks = [send_email_async(subject, body, recipient, doc_id) 
+                                for recipient in recipients]
+                        
+                        # Aguardar o envio de todos os emails
+                        results = await asyncio.gather(*tasks, return_exceptions=True)
+                        
+                        # Verificar se todos os emails foram enviados com sucesso
+                        success = all(result is True for result in results)
+                        
+                        # Atualizar status final
+                        doc_ref.update({
+                            "email_status": "completed" if success else "partial_failure",
+                            "email_sent_at": datetime.datetime.utcnow()
+                        })
+                        
+                    except Exception as e:
+                        print(f"Error processing document {doc_id}: {e}")
+                        # Marcar documento com erro
+                        doc_ref.update({
+                            "email_status": "failed",
+                            "error_message": str(e)
+                        })
 
-                    # Atualizar o documento no Firebase para marcar como notificado
-                    doc_ref = collection_ref.document(doc["id"])
-                    doc_ref.update({"notification": [datetime.datetime.utcnow()]})
-
-        # Atualizar o último timestamp verificado
         last_checked = datetime.datetime.utcnow()
     except Exception as e:
         print(f"Error while checking documents: {e}")
