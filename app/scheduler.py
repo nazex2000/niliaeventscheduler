@@ -1,7 +1,7 @@
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.jobstores.base import JobLookupError
 import asyncio
-from app.utils.firebase_utils import check_new_documents
+from app.utils.firebase_utils import check_new_documents, check_new_documents_aemc
 
 def start_scheduler():
     scheduler = BackgroundScheduler()
@@ -14,5 +14,11 @@ def start_scheduler():
         id="firebase_check_job"
     )
 
+    scheduler.add_job(
+        lambda: asyncio.run(check_new_documents_aemc()),
+        "interval",
+        minutes=1,
+        id="firebase_check_job_aemc"
+    )
     scheduler.start()
     return scheduler
