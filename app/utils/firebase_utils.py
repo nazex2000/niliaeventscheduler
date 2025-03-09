@@ -105,6 +105,60 @@ async def check_new_documents():
         last_checked = datetime.datetime.utcnow()
     except Exception as e:
         print(f"Error while checking documents: {e}")
+        
+async def check_new_messages_aemc():
+    """Check for new messages in Firebase and send emails asynchronously."""
+    global last_checked
+    try:
+        collection_ref = dbAemc.collection('messages')
+        query = collection_ref.where('read', '==', False).stream()
+        
+        new_messages = []
+        for doc in query:
+            new_messages.append({"id": doc.id, **doc.to_dict()})
+
+        if new_messages:
+            print(f"Found {len(new_messages)} new messages.")
+            
+            for doc in new_messages:
+                doc_id = doc["id"]
+                print(f"Processing message {doc_id}")
+
+                subject = doc.get('assunto')
+                name = doc.get('nome')
+                email = doc.get('email')
+                message = doc.get('mensagem')
+                
+                recipients = fetch_aemc_admin_emails()
+
+                if recipients:
+                    try:
+                        doc_ref = collection_ref.document(doc_id)
+                        
+                        body = generate_aemc_message_body(subject, name, email, message)
+                        
+                        tasks = [send_email_async("AEMC - Nova Mensagem", body, recipient, doc_id) 
+                                for recipient in recipients]
+                        
+                        results = await asyncio.gather(*tasks, return_exceptions=True)
+                        
+                        success = all(result is True for result in results)
+                        
+                        doc_ref.update({
+                            "read": True
+                        })
+                        
+                    except Exception as e:
+                        print(f"Error processing message {doc_id}: {e}")
+                        # Marcar documento com erro
+                        doc_ref.update({
+                            "error_message": str(e)
+                        })
+    except Exception as e:
+        print(f"Error while checking messages: {e}")
+
+
+
 
 async def check_new_documents_aemc():
     """Check for new documents in Firebase and send emails asynchronously."""
@@ -198,6 +252,16 @@ def generate_email_body(doc_id):
     # Substitua o marcador {{ id }} pelo ID real do documento
     html_content = html_content.replace("{{ id }}", doc_id)
 
+    return html_content
+
+def generate_aemc_message_body(subject, name, email, message):
+    dirTemplate = "app/templates/message.template.html"
+    with open(dirTemplate, "r", encoding='utf-8') as file:
+        html_content = file.read()
+    html_content = html_content.replace("aemcSubject", subject)
+    html_content = html_content.replace("aemcName", name)
+    html_content = html_content.replace("aemcEmail", email)
+    html_content = html_content.replace("aemcMessage", message)
     return html_content
 
 def generate_aemc_email_body(type, name, email, password, reason):
